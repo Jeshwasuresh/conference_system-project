@@ -1,0 +1,146 @@
+import sqlite3
+from tkinter import *
+
+# Establishing connection and creating cursor
+conn = sqlite3.connect('conference_system.db')
+c = conn.cursor()
+
+# Create tables if they don't exist
+c.execute('''CREATE TABLE IF NOT EXISTS papers (
+                id INTEGER PRIMARY KEY,
+                title TEXT,
+                author TEXT,
+                status TEXT DEFAULT 'Pending'
+            )''')
+
+c.execute('''CREATE TABLE IF NOT EXISTS users (
+                username TEXT,
+                password TEXT
+            )''')
+
+# Functions for database operations
+def execute_query(query, parameters=()):
+    c.execute(query, parameters)
+    conn.commit()
+    return c.fetchall()
+
+def submit_paper(title, author):
+    execute_query("INSERT INTO papers (title, author) VALUES (?, ?)", (title, author))
+
+def track_paper(author):
+    return execute_query("SELECT * FROM papers WHERE author=?", (author,))
+
+def check_credentials(username, password):
+    return execute_query("SELECT * FROM users WHERE username=? AND password=?", (username, password))
+
+def create_user(username, password):
+    execute_query("INSERT INTO users VALUES (?, ?)", (username, password))
+
+def approve_all_papers():
+    execute_query("UPDATE papers SET status='Approved' WHERE status='Pending'")
+
+# User interface functions
+def show_window(title, fields, button_text, button_command):
+    window = Tk()
+    window.geometry("300x200")
+    window.title(title)
+    for i, (label_text, entry_text) in enumerate(fields, start=1):
+        Label(window, text=label_text).grid(row=i, column=0)
+        Entry(window, text=entry_text).grid(row=i, column=1)
+    Button(window, text=button_text, command=button_command).grid(row=i+1, column=0, columnspan=2)
+    window.mainloop()
+
+def submit_paper_page():
+    fields = [("Paper Title", ""), ("Author", "")]
+    show_window("Submit New Paper", fields, "SUBMIT", lambda: submit_paper(*[entry.get() for entry in window.winfo_children() if isinstance(entry, Entry)]))
+
+def track_page():
+    fields = [("Author", "")]
+    show_window("Track Paper", fields, "TRACK", lambda: track_result(track_paper(window.winfo_children()[1].get())))
+
+def track_result(papers):
+    window = Tk()
+    window.geometry('400x300')
+    window.title("Paper Submission Status")
+    Label(window, text="Your Paper Submission Status:").pack()
+    papers_text = Text(window, height=10, width=60)
+    for paper in papers:
+        papers_text.insert(END, f'Title: {paper[1]}, Status: {paper[3]}\n')
+    papers_text.pack()
+    window.mainloop()
+
+def admin_window():
+    papers_pending = execute_query("SELECT * FROM papers WHERE status='Pending'")
+    window = Tk()
+    window.geometry('500x300')
+    window.title("Admin Panel")
+    Label(window, text="Papers Pending Approval:").pack()
+    records_text = Text(window, height=10, width=60)
+    for paper in papers_pending:
+        records_text.insert(END, f'ID: {paper[0]}, Title: {paper[1]}, Author: {paper[2]}\n')
+    records_text.pack()
+    Button(window, text="Approve All", command=approve_all_papers).pack(pady=10)
+    window.mainloop()
+
+def login():
+    username, password = e1.get(), e2.get()
+    if username == 'admin' and password == 'admin':
+        root.destroy()
+        admin_window()
+    elif check_credentials(username, password):
+        root.destroy()
+        menu()
+    else:
+        print("Invalid username or password")
+
+def menu():
+    window = Tk()
+    window.geometry("250x180")
+    window.title("Conference Management System")
+    Button(window, text="Sign Out", command=again_login).place(x=193, y=0)
+    Button(window, text="Submit Paper", command=submit_paper_page).place(x=85, y=60)
+    Button(window, text="Track Paper", command=track_page).place(x=85, y=110)
+    window.mainloop()
+
+def new_user():
+    def on_create(entry1, entry2):
+        create_user(entry1.get(), entry2.get())
+        window.destroy()
+
+    fields = [("User Name", ""), ("Password", "")]
+    window = Tk()
+    window.geometry('300x200')
+    window.title("NEW USER")
+    entry_widgets = []
+    for i, (label_text, entry_text) in enumerate(fields, start=1):
+        Label(window, text=label_text).grid(row=i, column=0)
+        entry = Entry(window, text=entry_text)
+        entry.grid(row=i, column=1)
+        entry_widgets.append(entry)
+    Button(window, text="Create", command=lambda: on_create(*entry_widgets)).grid(row=i+1, column=0, columnspan=2)
+    window.mainloop()
+
+def again_login():
+    root = Tk()
+    root.geometry('300x200')
+    root.title("Conference Management System")
+    Label(root, text="Name").place(x=30, y=50)
+    Label(root, text="Password").place(x=30, y=90)
+    e1, e2 = Entry(root, width=20), Entry(root, width=20, show="*")
+    e1.place(x=140, y=50)
+    e2.place(x=140, y=90)
+    Button(root, text="SIGN IN", command=login).place(x=120, y=150)
+    root.mainloop()
+
+# Main login window
+root = Tk()
+root.geometry('300x200')
+root.title("Conference Management System")
+Label(root, text="Name").place(x=30, y=50)
+Label(root, text="Password").place(x=30, y=90)
+e1, e2 = Entry(root, width=20), Entry(root, width=20, show="*")
+e1.place(x=140, y=50)
+e2.place(x=140, y=90)
+Button(root, text="SIGN IN", command=login).place(x=60, y=150)
+Button(root, text="SIGN UP", command=new_user).place(x=190, y=150)
+root.mainloop()
